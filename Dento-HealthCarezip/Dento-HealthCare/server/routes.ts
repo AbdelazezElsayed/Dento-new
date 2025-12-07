@@ -20,6 +20,7 @@ import {
   insertTreatmentPlanSchema
 } from "../shared/schema";
 import { eq } from "drizzle-orm";
+import bcrypt from "bcrypt";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // User routes
@@ -81,6 +82,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'User not found' });
       }
       res.json(user);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Authentication routes
+  app.post('/api/auth/register', async (req, res) => {
+    try {
+      const { username, password, fullName, email, phone, userType } = req.body;
+      
+      // Check if username already exists
+      const existingUser = await db.query.users.findFirst({
+        where: eq(users.username, username),
+      });
+      
+      if (existingUser) {
+        return res.status(400).json({ message: 'اسم المستخدم موجود بالفعل' });
+      }
+      
+      // Hash password
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      
+      // Create user
+      const [newUser] = await db.insert(users).values({
+        username,
+        password: hashedPassword,
+        fullName,
+        email: email || null,
+        phone: phone || null,
+        userType: userType || 'patient',
+      }).returning();
+      
+      // Return user without password
+      const { password: _, ...userWithoutPassword } = newUser;
+      res.status(201).json(userWithoutPassword);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      // Find user by username
+      const user = await db.query.users.findFirst({
+        where: eq(users.username, username),
+      });
+      
+      if (!user) {
+        return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+      }
+      
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      
+      if (!isValidPassword) {
+        return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+      }
+      
+      // Return user without password
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

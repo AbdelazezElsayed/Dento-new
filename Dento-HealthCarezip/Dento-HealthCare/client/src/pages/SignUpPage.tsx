@@ -176,17 +176,45 @@ export default function SignUpPage({ onSignUp }: SignUpPageProps) {
     if (step > 1) setStep(step - 1);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep3()) return;
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      if (onSignUp) {
-        onSignUp({ ...formData, userType });
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: formData.username,
+          password: formData.password,
+          fullName: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          userType: userType,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrors({ username: data.message || (language === "ar" ? "حدث خطأ أثناء إنشاء الحساب" : "Error creating account") });
+        setIsLoading(false);
+        return;
       }
-    }, 1500);
+
+      localStorage.setItem('dentoUser', JSON.stringify(data));
+      
+      if (onSignUp) {
+        onSignUp({ ...formData, userType, id: data.id });
+      }
+    } catch (error) {
+      setErrors({ username: language === "ar" ? "حدث خطأ في الاتصال بالخادم" : "Server connection error" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderStepIndicator = () => (

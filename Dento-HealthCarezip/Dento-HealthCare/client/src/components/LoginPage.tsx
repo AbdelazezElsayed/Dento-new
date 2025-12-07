@@ -102,7 +102,7 @@ export default function LoginPage({ onLogin, onSignUpClick }: LoginPageProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (isAccountLocked) {
@@ -145,12 +145,43 @@ export default function LoginPage({ onLogin, onSignUpClick }: LoginPageProps) {
     setIsLoading(true);
     setErrors({});
     
-    setTimeout(() => {
-      setIsLoading(false);
-      if (onLogin) {
-        onLogin(userType, username);
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrors({ 
+          username: data.message || (language === "ar" ? "خطأ في تسجيل الدخول" : "Login error") 
+        });
+        setFailedAttempts(prev => prev + 1);
+        triggerShake();
+        setIsLoading(false);
+        return;
       }
-    }, 1500);
+
+      localStorage.setItem('dentoUser', JSON.stringify(data));
+      
+      if (onLogin) {
+        onLogin(data.userType || userType, data.username);
+      }
+    } catch (error) {
+      setErrors({ 
+        username: language === "ar" ? "حدث خطأ في الاتصال بالخادم" : "Server connection error" 
+      });
+      triggerShake();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,21 @@ interface Question {
   options?: { value: string; label: string; labelEn: string }[];
 }
 
+const clinicConditionMapping: Record<string, { clinicId: string; clinicName: string; clinicNameEn: string }> = {
+  dental_caries: { clinicId: "conservative", clinicName: "العلاج التحفظي", clinicNameEn: "Conservative Treatment" },
+  gingivitis: { clinicId: "gums", clinicName: "علاج اللثة", clinicNameEn: "Gum Treatment" },
+  tooth_sensitivity: { clinicId: "conservative", clinicName: "العلاج التحفظي", clinicNameEn: "Conservative Treatment" },
+  root_canal: { clinicId: "conservative", clinicName: "العلاج التحفظي", clinicNameEn: "Conservative Treatment" },
+  extraction: { clinicId: "surgery", clinicName: "جراحة الفم", clinicNameEn: "Oral Surgery" },
+  orthodontic: { clinicId: "orthodontics", clinicName: "تقويم الأسنان", clinicNameEn: "Orthodontics" },
+  cosmetic: { clinicId: "cosmetic", clinicName: "تجميل الأسنان", clinicNameEn: "Cosmetic Dentistry" },
+  implant: { clinicId: "implants", clinicName: "زراعة الأسنان", clinicNameEn: "Dental Implants" },
+  pediatric: { clinicId: "pediatric", clinicName: "أسنان الأطفال", clinicNameEn: "Pediatric Dentistry" },
+  periodontitis: { clinicId: "gums", clinicName: "علاج اللثة", clinicNameEn: "Gum Treatment" },
+  dentures: { clinicId: "removable", clinicName: "التركيبات المتحركة", clinicNameEn: "Removable Prosthetics" },
+  crowns: { clinicId: "fixed", clinicName: "التركيبات الثابتة", clinicNameEn: "Fixed Prosthetics" },
+};
+
 const diagnosisQuestions: Question[] = [
   {
     id: "pain_location",
@@ -56,6 +72,7 @@ const diagnosisQuestions: Question[] = [
       { value: "lower_left", label: "الفك السفلي الأيسر", labelEn: "Lower Left Jaw" },
       { value: "all", label: "الفم بالكامل", labelEn: "Entire Mouth" },
       { value: "gums", label: "اللثة فقط", labelEn: "Gums Only" },
+      { value: "none", label: "لا يوجد ألم", labelEn: "No Pain" },
     ],
   },
   {
@@ -69,6 +86,7 @@ const diagnosisQuestions: Question[] = [
       { value: "throbbing", label: "ألم نابض", labelEn: "Throbbing Pain" },
       { value: "sensitivity", label: "حساسية للبرودة/الحرارة", labelEn: "Cold/Heat Sensitivity" },
       { value: "pressure", label: "ألم عند الضغط أو المضغ", labelEn: "Pain When Pressing/Chewing" },
+      { value: "night_pain", label: "ألم يزداد ليلاً", labelEn: "Pain Worsens at Night" },
     ],
   },
   {
@@ -101,7 +119,73 @@ const diagnosisQuestions: Question[] = [
       { value: "bad_breath", label: "رائحة فم كريهة", labelEn: "Bad Breath" },
       { value: "loose_tooth", label: "أسنان متحركة", labelEn: "Loose Teeth" },
       { value: "discoloration", label: "تغير لون السن", labelEn: "Tooth Discoloration" },
+      { value: "pus", label: "خراج أو صديد", labelEn: "Abscess or Pus" },
       { value: "none", label: "لا شيء مما سبق", labelEn: "None of the Above" },
+    ],
+  },
+  {
+    id: "oral_hygiene",
+    question: "كم مرة تنظف أسنانك يومياً؟",
+    questionEn: "How many times do you brush your teeth daily?",
+    type: "radio",
+    options: [
+      { value: "rarely", label: "نادراً", labelEn: "Rarely" },
+      { value: "once", label: "مرة واحدة", labelEn: "Once" },
+      { value: "twice", label: "مرتين", labelEn: "Twice" },
+      { value: "three_plus", label: "ثلاث مرات أو أكثر", labelEn: "Three or More" },
+    ],
+  },
+  {
+    id: "bruxism",
+    question: "هل تصرّ على أسنانك أثناء النوم أو خلال اليوم؟",
+    questionEn: "Do you grind your teeth while sleeping or during the day?",
+    type: "radio",
+    options: [
+      { value: "yes_sleep", label: "نعم، أثناء النوم", labelEn: "Yes, While Sleeping" },
+      { value: "yes_day", label: "نعم، خلال اليوم", labelEn: "Yes, During the Day" },
+      { value: "yes_both", label: "نعم، كلاهما", labelEn: "Yes, Both" },
+      { value: "no", label: "لا", labelEn: "No" },
+      { value: "not_sure", label: "لست متأكداً", labelEn: "Not Sure" },
+    ],
+  },
+  {
+    id: "previous_treatment",
+    question: "هل تلقيت علاج أسنان سابق؟",
+    questionEn: "Have you received previous dental treatment?",
+    type: "radio",
+    options: [
+      { value: "filling", label: "حشوات", labelEn: "Fillings" },
+      { value: "extraction", label: "خلع أسنان", labelEn: "Tooth Extraction" },
+      { value: "root_canal", label: "علاج عصب", labelEn: "Root Canal" },
+      { value: "orthodontics", label: "تقويم أسنان", labelEn: "Orthodontics" },
+      { value: "cleaning", label: "تنظيف أسنان", labelEn: "Teeth Cleaning" },
+      { value: "none", label: "لم أتلق علاج سابق", labelEn: "No Previous Treatment" },
+    ],
+  },
+  {
+    id: "age_group",
+    question: "ما فئتك العمرية؟",
+    questionEn: "What is your age group?",
+    type: "radio",
+    options: [
+      { value: "child", label: "أقل من 12 سنة", labelEn: "Under 12 Years" },
+      { value: "teen", label: "12-18 سنة", labelEn: "12-18 Years" },
+      { value: "adult", label: "19-40 سنة", labelEn: "19-40 Years" },
+      { value: "middle", label: "41-60 سنة", labelEn: "41-60 Years" },
+      { value: "senior", label: "أكثر من 60 سنة", labelEn: "Over 60 Years" },
+    ],
+  },
+  {
+    id: "smoking",
+    question: "هل تدخن أو تستخدم التبغ؟",
+    questionEn: "Do you smoke or use tobacco?",
+    type: "radio",
+    options: [
+      { value: "yes_cigarettes", label: "نعم، سجائر", labelEn: "Yes, Cigarettes" },
+      { value: "yes_shisha", label: "نعم، شيشة", labelEn: "Yes, Shisha" },
+      { value: "yes_both", label: "نعم، كلاهما", labelEn: "Yes, Both" },
+      { value: "former", label: "مدخن سابق", labelEn: "Former Smoker" },
+      { value: "no", label: "لا أدخن", labelEn: "Non-Smoker" },
     ],
   },
   {
@@ -114,7 +198,22 @@ const diagnosisQuestions: Question[] = [
       { value: "heart", label: "أمراض القلب", labelEn: "Heart Disease" },
       { value: "blood_pressure", label: "ضغط الدم", labelEn: "Blood Pressure" },
       { value: "allergy", label: "حساسية من الأدوية", labelEn: "Drug Allergy" },
+      { value: "pregnancy", label: "حمل", labelEn: "Pregnancy" },
       { value: "none", label: "لا توجد حالات سابقة", labelEn: "No Previous Conditions" },
+    ],
+  },
+  {
+    id: "concern_type",
+    question: "ما هو الهدف الرئيسي من زيارتك؟",
+    questionEn: "What is the main purpose of your visit?",
+    type: "radio",
+    options: [
+      { value: "pain_relief", label: "التخلص من الألم", labelEn: "Pain Relief" },
+      { value: "cosmetic", label: "تحسين المظهر الجمالي", labelEn: "Cosmetic Improvement" },
+      { value: "checkup", label: "فحص روتيني", labelEn: "Routine Checkup" },
+      { value: "replacement", label: "تعويض أسنان مفقودة", labelEn: "Replace Missing Teeth" },
+      { value: "alignment", label: "تقويم الأسنان", labelEn: "Teeth Alignment" },
+      { value: "cleaning", label: "تنظيف الأسنان", labelEn: "Teeth Cleaning" },
     ],
   },
   {
@@ -127,6 +226,7 @@ const diagnosisQuestions: Question[] = [
 
 export default function AIDiagnosisPage() {
   const { language } = useLanguage();
+  const [, setLocation] = useLocation();
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [xrayImage, setXrayImage] = useState<File | null>(null);
@@ -173,6 +273,9 @@ export default function AIDiagnosisPage() {
       painScale: "مقياس الألم",
       noPain: "لا ألم",
       severePain: "ألم شديد",
+      suggestedClinicTitle: "العيادة المقترحة",
+      bookAtClinic: "احجز موعد في هذه العيادة",
+      basedOnDiagnosis: "بناءً على التشخيص، ننصحك بزيارة:",
     },
     en: {
       title: "AI-Powered Diagnosis",
@@ -210,6 +313,9 @@ export default function AIDiagnosisPage() {
       painScale: "Pain Scale",
       noPain: "No Pain",
       severePain: "Severe Pain",
+      suggestedClinicTitle: "Suggested Clinic",
+      bookAtClinic: "Book Appointment at This Clinic",
+      basedOnDiagnosis: "Based on the diagnosis, we recommend visiting:",
     },
   };
 
@@ -262,11 +368,15 @@ export default function AIDiagnosisPage() {
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
+    const primaryCondition = "dental_caries";
+    const suggestedClinicInfo = clinicConditionMapping[primaryCondition] || clinicConditionMapping.dental_caries;
+
     const mockResult = {
       conditions: [
         {
           name: language === "ar" ? "تسوس الأسنان" : "Dental Caries",
           nameEn: "Dental Caries",
+          conditionKey: "dental_caries",
           probability: 85,
           description: language === "ar" 
             ? "تسوس في الضرس الخلفي يحتاج إلى حشو تجميلي"
@@ -275,6 +385,7 @@ export default function AIDiagnosisPage() {
         {
           name: language === "ar" ? "التهاب اللثة" : "Gingivitis",
           nameEn: "Gingivitis",
+          conditionKey: "gingivitis",
           probability: 65,
           description: language === "ar"
             ? "التهاب خفيف في اللثة يمكن علاجه بالتنظيف"
@@ -283,6 +394,7 @@ export default function AIDiagnosisPage() {
         {
           name: language === "ar" ? "حساسية الأسنان" : "Tooth Sensitivity",
           nameEn: "Tooth Sensitivity",
+          conditionKey: "tooth_sensitivity",
           probability: 45,
           description: language === "ar"
             ? "حساسية للبرودة والحرارة قد تكون بسبب تآكل المينا"
@@ -297,7 +409,12 @@ export default function AIDiagnosisPage() {
       ],
       urgency: "medium",
       confidence: 82,
-      suggestedClinic: language === "ar" ? "عيادة العلاج التحفظي" : "Conservative Treatment Clinic",
+      suggestedClinic: {
+        id: suggestedClinicInfo.clinicId,
+        name: language === "ar" ? suggestedClinicInfo.clinicName : suggestedClinicInfo.clinicNameEn,
+        nameAr: suggestedClinicInfo.clinicName,
+        nameEn: suggestedClinicInfo.clinicNameEn,
+      },
       estimatedTreatmentTime: language === "ar" ? "30-45 دقيقة" : "30-45 minutes",
     };
 
@@ -559,6 +676,41 @@ export default function AIDiagnosisPage() {
               </ul>
             </CardContent>
           </Card>
+
+          {diagnosisResult.suggestedClinic && (
+            <Card className="border-2 border-primary/30 bg-primary/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Stethoscope className="w-5 h-5 text-primary" />
+                  {t.suggestedClinicTitle}
+                </CardTitle>
+                <CardDescription>{t.basedOnDiagnosis}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                      <Stethoscope className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-lg">{diagnosisResult.suggestedClinic.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {language === "ar" ? diagnosisResult.suggestedClinic.nameEn : diagnosisResult.suggestedClinic.nameAr}
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    className="bg-primary hover:bg-primary/90"
+                    onClick={() => setLocation(`/clinic-${diagnosisResult.suggestedClinic.id}`)}
+                    data-testid="button-book-at-clinic"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    {t.bookAtClinic}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Card className="p-4">
