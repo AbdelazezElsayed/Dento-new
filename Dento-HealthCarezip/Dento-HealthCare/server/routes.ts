@@ -92,12 +92,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { username, password, fullName, email, phone, userType } = req.body;
       
-      // Check if username already exists
-      const existingUser = await db.query.users.findFirst({
-        where: eq(users.username, username),
-      });
+      // Check if username already exists using select instead of query
+      const existingUsers = await db.select().from(users).where(eq(users.username, username)).limit(1);
       
-      if (existingUser) {
+      if (existingUsers.length > 0) {
         return res.status(400).json({ message: 'اسم المستخدم موجود بالفعل' });
       }
       
@@ -127,14 +125,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { username, password } = req.body;
       
-      // Find user by username
-      const user = await db.query.users.findFirst({
-        where: eq(users.username, username),
-      });
+      // Find user by username using select instead of query
+      const foundUsers = await db.select().from(users).where(eq(users.username, username)).limit(1);
       
-      if (!user) {
+      if (foundUsers.length === 0) {
         return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
       }
+      
+      const user = foundUsers[0];
       
       // Verify password
       const isValidPassword = await bcrypt.compare(password, user.password);
