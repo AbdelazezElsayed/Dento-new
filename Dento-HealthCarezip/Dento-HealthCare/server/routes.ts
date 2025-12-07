@@ -21,6 +21,11 @@ import {
 } from "../shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
+import OpenAI from "openai";
+
+const openai = process.env.OPENAI_API_KEY 
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // User routes
@@ -660,6 +665,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(report);
     } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // AI Diagnosis endpoint
+  app.post('/api/ai/diagnosis', async (req, res) => {
+    try {
+      const { answers, xrayImage, language } = req.body;
+      
+      if (!openai) {
+        return res.status(503).json({ 
+          message: 'AI service not available. Please configure OPENAI_API_KEY.',
+          fallback: true
+        });
+      }
+      
+      const symptomDescription = Object.entries(answers)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('\n');
+      
+      const messages: any[] = [
+        {
+          role: "system",
+          content: `You are a dental diagnosis AI assistant. Analyze the patient's symptoms and provide a preliminary diagnosis. 
+          Response must be JSON with this structure:
+          {
+            "conditions": [{"name": string, "nameEn": string, "conditionKey": string, "probability": number, "description": string}],
+            "recommendations": [string],
+            "urgency": "high" | "medium" | "low",
+            "confidence": number,
+            "suggestedClinic": {"id": string, "name": string, "nameAr": string, "nameEn": string},
+            "estimatedTreatmentTime": string
+          }
+          Use Arabic for name and description if language is 'ar', English if 'en'.
+          conditionKey must be one of: dental_caries, gingivitis, tooth_sensitivity, root_canal, extraction, orthodontic, cosmetic, implant, pediatric, periodontitis, dentures, crowns`
+        },
+        {
+          role: "user",
+          content: `Patient symptoms:\n${symptomDescription}\nLanguage: ${language || 'ar'}`
+        }
+      ];
+
+      if (xrayImage) {
+        messages[1].content = [
+          { type: "text", text: `Patient symptoms:\n${symptomDescription}\nLanguage: ${language || 'ar'}\nPlease also analyze the attached dental X-ray image.` },
+          { type: "image_url", image_url: { url: xrayImage } }
+        ];
+      }
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages,
+        response_format: { type: "json_object" },
+        max_tokens: 2048
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || '{}');
+      res.json(result);
+    } catch (err: any) {
+      console.error('AI Diagnosis error:', err);
       res.status(500).json({ message: err.message });
     }
   });

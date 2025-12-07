@@ -545,37 +545,111 @@ export default function AIDiagnosisPage() {
     setIsAnalyzing(true);
     setActiveTab("result");
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      const response = await fetch('/api/ai/diagnosis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          answers,
+          xrayImage: xrayPreview,
+          language,
+        }),
+      });
 
-    const analyzedConditions = analyzeDiagnosis(answers);
-    const primaryCondition = analyzedConditions[0]?.conditionKey || "dental_caries";
-    const suggestedClinicInfo = clinicConditionMapping[primaryCondition] || clinicConditionMapping.dental_caries;
-    const painIntensity = parseInt(answers.pain_intensity || "0");
+      if (!response.ok) {
+        throw new Error('Failed to get diagnosis');
+      }
 
-    const result = {
-      conditions: analyzedConditions.map((cond) => {
-        const details = getConditionDetails(cond.conditionKey);
-        return {
-          name: language === "ar" ? details.nameAr : details.nameEn,
-          nameEn: details.nameEn,
-          conditionKey: cond.conditionKey,
-          probability: cond.probability,
-          description: language === "ar" ? details.descAr : details.descEn,
+      const aiResult = await response.json();
+      
+      if (aiResult.conditions && aiResult.conditions.length > 0) {
+        const primaryConditionKey = aiResult.conditions[0]?.conditionKey || "dental_caries";
+        const suggestedClinicInfo = clinicConditionMapping[primaryConditionKey] || clinicConditionMapping.dental_caries;
+        
+        const result = {
+          conditions: aiResult.conditions.map((cond: any) => ({
+            name: cond.name,
+            nameEn: cond.nameEn,
+            conditionKey: cond.conditionKey,
+            probability: cond.probability,
+            description: cond.description,
+          })),
+          recommendations: aiResult.recommendations || [],
+          urgency: aiResult.urgency || "medium",
+          confidence: aiResult.confidence || 70,
+          suggestedClinic: aiResult.suggestedClinic || {
+            id: suggestedClinicInfo.clinicId,
+            name: language === "ar" ? suggestedClinicInfo.clinicName : suggestedClinicInfo.clinicNameEn,
+            nameAr: suggestedClinicInfo.clinicName,
+            nameEn: suggestedClinicInfo.clinicNameEn,
+          },
+          estimatedTreatmentTime: aiResult.estimatedTreatmentTime || (language === "ar" ? "30-45 دقيقة" : "30-45 minutes"),
         };
-      }),
-      recommendations: getRecommendations(primaryCondition, answers),
-      urgency: getUrgency(analyzedConditions, painIntensity),
-      confidence: Math.min(analyzedConditions[0]?.probability + 10, 95),
-      suggestedClinic: {
-        id: suggestedClinicInfo.clinicId,
-        name: language === "ar" ? suggestedClinicInfo.clinicName : suggestedClinicInfo.clinicNameEn,
-        nameAr: suggestedClinicInfo.clinicName,
-        nameEn: suggestedClinicInfo.clinicNameEn,
-      },
-      estimatedTreatmentTime: language === "ar" ? "30-45 دقيقة" : "30-45 minutes",
-    };
+        setDiagnosisResult(result);
+      } else {
+        const analyzedConditions = analyzeDiagnosis(answers);
+        const primaryCondition = analyzedConditions[0]?.conditionKey || "dental_caries";
+        const suggestedClinicInfo = clinicConditionMapping[primaryCondition] || clinicConditionMapping.dental_caries;
+        const painIntensity = parseInt(answers.pain_intensity || "0");
 
-    setDiagnosisResult(result);
+        const result = {
+          conditions: analyzedConditions.map((cond) => {
+            const details = getConditionDetails(cond.conditionKey);
+            return {
+              name: language === "ar" ? details.nameAr : details.nameEn,
+              nameEn: details.nameEn,
+              conditionKey: cond.conditionKey,
+              probability: cond.probability,
+              description: language === "ar" ? details.descAr : details.descEn,
+            };
+          }),
+          recommendations: getRecommendations(primaryCondition, answers),
+          urgency: getUrgency(analyzedConditions, painIntensity),
+          confidence: Math.min(analyzedConditions[0]?.probability + 10, 95),
+          suggestedClinic: {
+            id: suggestedClinicInfo.clinicId,
+            name: language === "ar" ? suggestedClinicInfo.clinicName : suggestedClinicInfo.clinicNameEn,
+            nameAr: suggestedClinicInfo.clinicName,
+            nameEn: suggestedClinicInfo.clinicNameEn,
+          },
+          estimatedTreatmentTime: language === "ar" ? "30-45 دقيقة" : "30-45 minutes",
+        };
+        setDiagnosisResult(result);
+      }
+    } catch (error) {
+      console.error('AI Diagnosis error:', error);
+      const analyzedConditions = analyzeDiagnosis(answers);
+      const primaryCondition = analyzedConditions[0]?.conditionKey || "dental_caries";
+      const suggestedClinicInfo = clinicConditionMapping[primaryCondition] || clinicConditionMapping.dental_caries;
+      const painIntensity = parseInt(answers.pain_intensity || "0");
+
+      const result = {
+        conditions: analyzedConditions.map((cond) => {
+          const details = getConditionDetails(cond.conditionKey);
+          return {
+            name: language === "ar" ? details.nameAr : details.nameEn,
+            nameEn: details.nameEn,
+            conditionKey: cond.conditionKey,
+            probability: cond.probability,
+            description: language === "ar" ? details.descAr : details.descEn,
+          };
+        }),
+        recommendations: getRecommendations(primaryCondition, answers),
+        urgency: getUrgency(analyzedConditions, painIntensity),
+        confidence: Math.min(analyzedConditions[0]?.probability + 10, 95),
+        suggestedClinic: {
+          id: suggestedClinicInfo.clinicId,
+          name: language === "ar" ? suggestedClinicInfo.clinicName : suggestedClinicInfo.clinicNameEn,
+          nameAr: suggestedClinicInfo.clinicName,
+          nameEn: suggestedClinicInfo.clinicNameEn,
+        },
+        estimatedTreatmentTime: language === "ar" ? "30-45 دقيقة" : "30-45 minutes",
+      };
+      setDiagnosisResult(result);
+    }
+
     setIsAnalyzing(false);
   };
 
@@ -858,7 +932,7 @@ export default function AIDiagnosisPage() {
                   </div>
                   <Button 
                     className="bg-primary hover:bg-primary/90"
-                    onClick={() => setLocation(`/clinic-${diagnosisResult.suggestedClinic.id}`)}
+                    onClick={() => setLocation(`/clinic/${diagnosisResult.suggestedClinic.id}`)}
                     data-testid="button-book-at-clinic"
                   >
                     <Calendar className="w-4 h-4 mr-2" />
