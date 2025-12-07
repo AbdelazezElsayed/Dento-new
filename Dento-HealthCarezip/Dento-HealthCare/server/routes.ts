@@ -92,7 +92,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { username, password, fullName, email, phone, userType } = req.body;
       
-      // Check if username already exists using select instead of query
+      // Check if username already exists
       const existingUsers = await db.select().from(users).where(eq(users.username, username)).limit(1);
       
       if (existingUsers.length > 0) {
