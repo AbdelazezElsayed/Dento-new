@@ -362,53 +362,210 @@ export default function AIDiagnosisPage() {
     }
   };
 
+  const analyzeDiagnosis = (userAnswers: Record<string, string>) => {
+    const conditionScores: Record<string, number> = {
+      dental_caries: 0,
+      gingivitis: 0,
+      tooth_sensitivity: 0,
+      root_canal: 0,
+      extraction: 0,
+      orthodontic: 0,
+      cosmetic: 0,
+      implant: 0,
+      pediatric: 0,
+      periodontitis: 0,
+      dentures: 0,
+      crowns: 0,
+    };
+
+    if (userAnswers.pain_type === "sharp" || userAnswers.pain_type === "throbbing") {
+      conditionScores.dental_caries += 30;
+      conditionScores.root_canal += 25;
+    }
+    if (userAnswers.pain_type === "sensitivity") {
+      conditionScores.tooth_sensitivity += 40;
+      conditionScores.dental_caries += 15;
+    }
+    if (userAnswers.pain_type === "night_pain") {
+      conditionScores.root_canal += 35;
+    }
+
+    if (userAnswers.symptoms === "bleeding") {
+      conditionScores.gingivitis += 40;
+      conditionScores.periodontitis += 30;
+    }
+    if (userAnswers.symptoms === "swelling" || userAnswers.symptoms === "pus") {
+      conditionScores.root_canal += 30;
+      conditionScores.extraction += 25;
+    }
+    if (userAnswers.symptoms === "loose_tooth") {
+      conditionScores.periodontitis += 35;
+      conditionScores.extraction += 20;
+    }
+    if (userAnswers.symptoms === "discoloration") {
+      conditionScores.dental_caries += 25;
+      conditionScores.cosmetic += 20;
+    }
+
+    if (userAnswers.pain_location === "gums") {
+      conditionScores.gingivitis += 25;
+      conditionScores.periodontitis += 20;
+    }
+
+    const painIntensity = parseInt(userAnswers.pain_intensity || "0");
+    if (painIntensity >= 8) {
+      conditionScores.root_canal += 20;
+      conditionScores.extraction += 15;
+    }
+
+    if (userAnswers.pain_duration === "months") {
+      conditionScores.periodontitis += 15;
+      conditionScores.root_canal += 10;
+    }
+
+    if (userAnswers.concern_type === "cosmetic") {
+      conditionScores.cosmetic += 50;
+    }
+    if (userAnswers.concern_type === "alignment") {
+      conditionScores.orthodontic += 50;
+    }
+    if (userAnswers.concern_type === "replacement") {
+      conditionScores.implant += 30;
+      conditionScores.dentures += 25;
+      conditionScores.crowns += 20;
+    }
+    if (userAnswers.concern_type === "cleaning") {
+      conditionScores.gingivitis += 20;
+    }
+
+    if (userAnswers.age_group === "child") {
+      conditionScores.pediatric += 40;
+    }
+    if (userAnswers.age_group === "senior") {
+      conditionScores.dentures += 15;
+      conditionScores.periodontitis += 10;
+    }
+
+    if (userAnswers.smoking === "yes_cigarettes" || userAnswers.smoking === "yes_shisha" || userAnswers.smoking === "yes_both") {
+      conditionScores.periodontitis += 15;
+      conditionScores.cosmetic += 10;
+    }
+
+    if (userAnswers.oral_hygiene === "rarely") {
+      conditionScores.dental_caries += 20;
+      conditionScores.gingivitis += 15;
+    }
+
+    if (userAnswers.bruxism === "yes_sleep" || userAnswers.bruxism === "yes_day" || userAnswers.bruxism === "yes_both") {
+      conditionScores.tooth_sensitivity += 20;
+      conditionScores.crowns += 15;
+    }
+
+    if (userAnswers.previous_treatment === "root_canal") {
+      conditionScores.crowns += 20;
+    }
+    if (userAnswers.previous_treatment === "extraction") {
+      conditionScores.implant += 25;
+      conditionScores.dentures += 20;
+    }
+
+    const sortedConditions = Object.entries(conditionScores)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3);
+
+    const maxScore = Math.max(...Object.values(conditionScores), 1);
+    
+    return sortedConditions.map(([key, score]) => ({
+      conditionKey: key,
+      probability: Math.min(Math.round((score / maxScore) * 100), 95),
+    }));
+  };
+
+  const getConditionDetails = (conditionKey: string) => {
+    const conditions: Record<string, { nameAr: string; nameEn: string; descAr: string; descEn: string }> = {
+      dental_caries: { nameAr: "تسوس الأسنان", nameEn: "Dental Caries", descAr: "تسوس يحتاج إلى حشو أو علاج تحفظي", descEn: "Cavity requiring filling or conservative treatment" },
+      gingivitis: { nameAr: "التهاب اللثة", nameEn: "Gingivitis", descAr: "التهاب في اللثة يمكن علاجه بالتنظيف", descEn: "Gum inflammation treatable with cleaning" },
+      tooth_sensitivity: { nameAr: "حساسية الأسنان", nameEn: "Tooth Sensitivity", descAr: "حساسية للبرودة والحرارة", descEn: "Sensitivity to cold and heat" },
+      root_canal: { nameAr: "علاج العصب", nameEn: "Root Canal", descAr: "يحتاج إلى علاج عصب السن", descEn: "Requires root canal treatment" },
+      extraction: { nameAr: "خلع الأسنان", nameEn: "Tooth Extraction", descAr: "قد يحتاج السن إلى الخلع", descEn: "Tooth may need extraction" },
+      orthodontic: { nameAr: "تقويم الأسنان", nameEn: "Orthodontics", descAr: "يحتاج إلى تقويم لترتيب الأسنان", descEn: "Needs braces for teeth alignment" },
+      cosmetic: { nameAr: "تجميل الأسنان", nameEn: "Cosmetic Dentistry", descAr: "إجراءات تجميلية لتحسين المظهر", descEn: "Cosmetic procedures to improve appearance" },
+      implant: { nameAr: "زراعة الأسنان", nameEn: "Dental Implant", descAr: "زراعة لتعويض الأسنان المفقودة", descEn: "Implant to replace missing teeth" },
+      pediatric: { nameAr: "أسنان الأطفال", nameEn: "Pediatric Dentistry", descAr: "رعاية أسنان خاصة بالأطفال", descEn: "Special dental care for children" },
+      periodontitis: { nameAr: "أمراض اللثة المتقدمة", nameEn: "Periodontitis", descAr: "التهاب متقدم في اللثة يحتاج علاج متخصص", descEn: "Advanced gum disease requiring specialized treatment" },
+      dentures: { nameAr: "أطقم الأسنان", nameEn: "Dentures", descAr: "تركيبات متحركة لتعويض الأسنان", descEn: "Removable prosthetics to replace teeth" },
+      crowns: { nameAr: "التيجان", nameEn: "Crowns", descAr: "تيجان ثابتة لحماية الأسنان", descEn: "Fixed crowns to protect teeth" },
+    };
+    return conditions[conditionKey] || conditions.dental_caries;
+  };
+
+  const getRecommendations = (primaryCondition: string, userAnswers: Record<string, string>) => {
+    const baseRecs = {
+      ar: ["زيارة طبيب الأسنان في أقرب وقت ممكن"],
+      en: ["Visit a dentist as soon as possible"],
+    };
+
+    if (userAnswers.oral_hygiene === "rarely" || userAnswers.oral_hygiene === "once") {
+      baseRecs.ar.push("تنظيف الأسنان مرتين يومياً على الأقل");
+      baseRecs.en.push("Brush your teeth at least twice daily");
+    }
+
+    if (primaryCondition === "gingivitis" || primaryCondition === "periodontitis") {
+      baseRecs.ar.push("استخدام غسول الفم المطهر", "المضمضة بالماء المالح");
+      baseRecs.en.push("Use antiseptic mouthwash", "Rinse with salt water");
+    }
+
+    if (primaryCondition === "tooth_sensitivity") {
+      baseRecs.ar.push("استخدام معجون أسنان للحساسية", "تجنب الأطعمة شديدة البرودة أو الحرارة");
+      baseRecs.en.push("Use sensitivity toothpaste", "Avoid very cold or hot foods");
+    }
+
+    if (userAnswers.smoking && userAnswers.smoking !== "no") {
+      baseRecs.ar.push("الإقلاع عن التدخين لتحسين صحة الفم");
+      baseRecs.en.push("Quit smoking to improve oral health");
+    }
+
+    return language === "ar" ? baseRecs.ar : baseRecs.en;
+  };
+
+  const getUrgency = (conditions: { conditionKey: string; probability: number }[], painIntensity: number) => {
+    const urgentConditions = ["root_canal", "extraction", "periodontitis"];
+    const primaryCondition = conditions[0]?.conditionKey;
+    
+    if (painIntensity >= 8 || urgentConditions.includes(primaryCondition)) {
+      return "high";
+    }
+    if (painIntensity >= 5 || conditions[0]?.probability >= 70) {
+      return "medium";
+    }
+    return "low";
+  };
+
   const runDiagnosis = async () => {
     setIsAnalyzing(true);
     setActiveTab("result");
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    const primaryCondition = "dental_caries";
+    const analyzedConditions = analyzeDiagnosis(answers);
+    const primaryCondition = analyzedConditions[0]?.conditionKey || "dental_caries";
     const suggestedClinicInfo = clinicConditionMapping[primaryCondition] || clinicConditionMapping.dental_caries;
+    const painIntensity = parseInt(answers.pain_intensity || "0");
 
-    const mockResult = {
-      conditions: [
-        {
-          name: language === "ar" ? "تسوس الأسنان" : "Dental Caries",
-          nameEn: "Dental Caries",
-          conditionKey: "dental_caries",
-          probability: 85,
-          description: language === "ar" 
-            ? "تسوس في الضرس الخلفي يحتاج إلى حشو تجميلي"
-            : "Cavity in the back molar requiring cosmetic filling",
-        },
-        {
-          name: language === "ar" ? "التهاب اللثة" : "Gingivitis",
-          nameEn: "Gingivitis",
-          conditionKey: "gingivitis",
-          probability: 65,
-          description: language === "ar"
-            ? "التهاب خفيف في اللثة يمكن علاجه بالتنظيف"
-            : "Mild gum inflammation treatable with cleaning",
-        },
-        {
-          name: language === "ar" ? "حساسية الأسنان" : "Tooth Sensitivity",
-          nameEn: "Tooth Sensitivity",
-          conditionKey: "tooth_sensitivity",
-          probability: 45,
-          description: language === "ar"
-            ? "حساسية للبرودة والحرارة قد تكون بسبب تآكل المينا"
-            : "Cold and heat sensitivity possibly due to enamel erosion",
-        },
-      ],
-      recommendations: [
-        language === "ar" ? "زيارة طبيب الأسنان في أقرب وقت ممكن" : "Visit a dentist as soon as possible",
-        language === "ar" ? "استخدام معجون أسنان للحساسية" : "Use sensitivity toothpaste",
-        language === "ar" ? "تجنب الأطعمة والمشروبات الباردة جداً أو الساخنة جداً" : "Avoid very cold or very hot foods and drinks",
-        language === "ar" ? "المضمضة بالماء المالح مرتين يومياً" : "Rinse with salt water twice daily",
-      ],
-      urgency: "medium",
-      confidence: 82,
+    const result = {
+      conditions: analyzedConditions.map((cond) => {
+        const details = getConditionDetails(cond.conditionKey);
+        return {
+          name: language === "ar" ? details.nameAr : details.nameEn,
+          nameEn: details.nameEn,
+          conditionKey: cond.conditionKey,
+          probability: cond.probability,
+          description: language === "ar" ? details.descAr : details.descEn,
+        };
+      }),
+      recommendations: getRecommendations(primaryCondition, answers),
+      urgency: getUrgency(analyzedConditions, painIntensity),
+      confidence: Math.min(analyzedConditions[0]?.probability + 10, 95),
       suggestedClinic: {
         id: suggestedClinicInfo.clinicId,
         name: language === "ar" ? suggestedClinicInfo.clinicName : suggestedClinicInfo.clinicNameEn,
@@ -418,7 +575,7 @@ export default function AIDiagnosisPage() {
       estimatedTreatmentTime: language === "ar" ? "30-45 دقيقة" : "30-45 minutes",
     };
 
-    setDiagnosisResult(mockResult);
+    setDiagnosisResult(result);
     setIsAnalyzing(false);
   };
 
